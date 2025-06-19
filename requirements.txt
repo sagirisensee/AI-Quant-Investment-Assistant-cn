@@ -1,0 +1,8 @@
+akshare==1.2.60
+pandas==1.5.3
+cachetools==5.3.0
+python-dotenv==1.0.0
+tenacity==8.2.2
+pandas_ta==0.3.14b0
+openai==0.27.8
+python-telegram-bot==20.3
