@@ -33,7 +33,10 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
 
     system_prompt = (
         "你是一个专业的金融数据分析工具。请基于用户提供的JSON数据，客观地总结投资标的的状态，"
-        "并给出一个综合评分（0-100，50为中性）和一句话来总结性点评+如此判断的依据。"
+        "特别注意结合日线级别整体趋势、盘中技术信号以及**详细的技术指标分析**。"
+        "详细技术指标分析包含：股价与5日、10日、20日、60日均线关系，均线之间的金叉/死叉（如5日金叉10日、20日金叉60日），60日均线趋势方向，以及MACD指标（金叉/死叉、零轴位置、红绿柱增减），"
+        "**以及60日成交量均线关系（如成交量较60日均量显著放大/萎缩）**。"
+        "综合这些信息，给出一个综合评分（0-100，50为中性）对于所有每一个获取到的指标的点评。请只输出JSON格式。"
         "请严格以JSON格式返回，包含'score'和'comment'两个键。"
     )
 
@@ -53,7 +56,7 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
                         "type": "object",
                         "properties": {
                             "score": {"type": "number", "description": "0到100分的综合评分"},
-                            "comment": {"type": "string", "description": "一句精炼的交易点评"}
+                            "comment": {"type": "string", "description": "各指标得出的交易点评"}
                         },
                         "required": ["score", "comment"]
                     }

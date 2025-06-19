@@ -10,7 +10,7 @@
 *   **混合分析模型**：机器人内部执行一套复杂的分析流程：
     *   **数据获取**：通过 `akshare` 库获取所有核心ETF和股票的实时行情数据及历史日线数据。
     *   **量化计算**：在本地计算客观的技术指标，包括日线趋势（如20日均线）和盘中异动信号（如相对成交量放大、日内大幅涨跌）。
-    *   **AI推理**：将量化计算出的“结构化数据”打包，发送给大语言模型（如 Perplexity Sonar 或 硅基流动 GLM-4）。
+    *   **AI推理**：将量化计算出的“结构化数据”打包，发送给大语言模型
     *   **生成报告**：接收AI返回的综合评分和精炼点评，并以清晰、美观的格式呈现给用户。
 *   **双重分析模式**：同时支持对ETF和A股股票进行分析。
 
@@ -18,7 +18,6 @@
 
 在开发过程中，我们克服了一系列典型的技术挑战，确保了程序的健壮性和可靠性：
 
-*   **复杂环境配置**：成功解决了 Apple Silicon (M1/M2) Mac 上因 Python 3.13 版本过新导致的 Conda 环境与旧版库兼容性问题，最终通过使用 Python 3.10 环境稳定运行。
 *   **第三方库兼容性**：精准解决了 `pandas_ta` 库与 `akshare` 数据源之间因列名中英文不匹配（如 `close` vs `收盘`）导致的计算失败问题。
 *   **API 访问策略**：有效应对了来自数据源和 LLM 服务商的双重 API 速率限制/反爬虫问题，通过引入“随机延迟”的“串行”请求，模拟人类行为，避免 IP 被封禁。
 *   **API“方言”适配**：深入解决了不同 LLM 服务商 API 规范的细微差异，特别是 `response_format` 中关于 `json_schema` 的精确要求，确保了与兼容 OpenAI 格式的 API 无缝通信。
@@ -60,9 +59,9 @@
     在项目根目录下创建 `.env` 文件，并填入以下配置信息。
     ```
     TELEGRAM_TOKEN="您的Telegram Bot Token"
-    LLM_API_BASE="您的LLM API的基础URL，例如：https://api.perplexity.ai"
+    LLM_API_BASE="您的LLM API的基础URL
     LLM_API_KEY="您的LLM API Key"
-    LLM_MODEL_NAME="您使用的LLM模型名称，例如：sonar-model-50-alpha, sonar-medium-online, glm-4"
+    LLM_MODEL_NAME="您使用的LLM模型名称
     CACHE_EXPIRE_SECONDS="60" # 数据缓存有效期（秒），默认为60秒
     ```
     *   **Telegram Bot Token**: 从 BotFather 获取。
