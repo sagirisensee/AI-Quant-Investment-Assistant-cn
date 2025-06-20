@@ -101,7 +101,23 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             prev_latest = result.iloc[-2]
 
             trend_signals = [] # 用于存储本次分析提取的详细技术信号
+            sma_cols_exist = all(col in latest for col in ['SMA_5', 'SMA_10', 'SMA_20', 'SMA_60'])
+            
+            if sma_cols_exist and all(pd.notna(latest[col]) for col in ['SMA_5', 'SMA_10', 'SMA_20', 'SMA_60']):
+                is_bullish_stack = (latest['SMA_5'] > latest['SMA_10'] and
+                                    latest['SMA_10'] > latest['SMA_20'] and
+                                    latest['SMA_20'] > latest['SMA_60'])
+                
+                is_bearish_stack = (latest['SMA_5'] < latest['SMA_10'] and
+                                    latest['SMA_10'] < latest['SMA_20'] and
+                                    latest['SMA_20'] < latest['SMA_60'])
 
+                if is_bullish_stack:
+                    trend_signals.append("均线呈强势多头排列 (5 > 10 > 20 > 60日线)，趋势强劲")
+                elif is_bearish_stack:
+                    trend_signals.append("均线呈弱势空头排列 (5 < 10 < 20 < 60日线)，趋势疲弱")
+                else:
+                    trend_signals.append("均线排列纠缠 (处于震荡或趋势转换期)")
             # ----------------------------------------------------
             # 1. 移动平均线（MA）关系 - 修正：确保高于和低于都有信号
             # ----------------------------------------------------
