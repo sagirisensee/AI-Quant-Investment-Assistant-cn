@@ -6,6 +6,7 @@ import os
 import logging
 import asyncio
 from tenacity import retry, stop_after_attempt, wait_fixed
+import json 
 
 logger = logging.getLogger(__name__)
 load_dotenv() 
@@ -13,32 +14,27 @@ load_dotenv()
 CACHE_EXPIRE = int(os.getenv('CACHE_EXPIRE_SECONDS', '60')) 
 cache = TTLCache(maxsize=10, ttl=CACHE_EXPIRE)
 
-# --- 您的核心ETF观察池 (您可以在这里自由增删) ---
-CORE_ETF_POOL = [
-    # ... (您的列表保持不变)
-    {'code': '510050', 'name': '上证50ETF'},
+def _load_pool_from_env(env_var_name: str, default_pool: list = None):
+    """从环境变量加载JSON格式的观察池"""
+    pool_json = os.getenv(env_var_name)
+    if not pool_json:
+        logger.warning(f" 环境变量 '{env_var_name}' 未设置，将使用默认或空列表。")
+        return default_pool if default_pool is not None else []
+    try:
+        # 尝试解析JSON字符串
+        return json.loads(pool_json)
+    except json.JSONDecodeError:
+        logger.error(f" 环境变量 '{env_var_name}' 中的JSON格式错误，无法解析。请检查是否所有字符串都使用了双引号且没有尾随逗号。将使用默认或空列表。")
+        return default_pool if default_pool is not None else []
+DEFAULT_ETF_POOL = [
     {'code': '510300', 'name': '沪深300ETF'},
-    {'code': '510500', 'name': '中证500ETF'},
-    {'code': '159919', 'name': '创业板50ETF'},
-    {'code': '588000', 'name': '科创50ETF'},
-    {'code': '512000', 'name': '券商ETF'},
-    {'code': '159995', 'name': '芯片ETF'},
-    {'code': '512690', 'name': '酒ETF'},
-    {'code': '512010', 'name': '医药ETF'},
-    {'code': '513050', 'name': '中概互联ETF'},
-    {'code': '512800', 'name': '银行ETF'},
-    {'code': '159992', 'name': '创新药ETF'},
-    {'code': '515030', 'name': '新能源车ETF'},
-    {'code': '159825', 'name': '农业ETF'},
-    {'code': '518880', 'name': '黄金ETF'},
-    {'code': '159869', 'name': '游戏ETF'},    
+    {'code': '159919', 'name': '创业板50ETF'}
+]   
+CORE_ETF_POOL = _load_pool_from_env('CORE_ETF_POOL_JSON', DEFAULT_ETF_POOL)
+DEFAULT_STOCK_POOL = [
+    {'code': '600519', 'name': '贵州茅台'}
 ]
-CORE_STOCK_POOL = [
-    {'code': '603298', 'name': '杭叉集团'},
-    {'code': '000819', 'name': '有色金属'},
-    # 您可以在这里添加更多您关注的股票
-]
-# --- 核心数据获取与处理函数 (这部分保持不变) ---
+CORE_STOCK_POOL = _load_pool_from_env('CORE_STOCK_POOL_JSON', DEFAULT_STOCK_POOL)
 
 @cached(cache)
 def get_all_etf_spot_realtime():
@@ -56,7 +52,7 @@ def get_all_etf_spot_realtime():
         df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收']) * 100
         return df
     except Exception as e:
-        logger.error(f"❌ 获取ETF实时数据失败: {e}", exc_info=True)
+        logger.error(f" 获取ETF实时数据失败: {e}", exc_info=True)
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
@@ -91,7 +87,7 @@ def get_all_stock_spot_realtime():
         df.loc[mask, '涨跌幅'] = ((df.loc[mask, '最新价'] - df.loc[mask, '昨收']) / df.loc[mask, '昨收'])
         return df
     except Exception as e:
-        logger.error(f"❌ 获取股票实时数据失败: {e}", exc_info=True)
+        logger.error(f" 获取股票实时数据失败: {e}", exc_info=True)
         return None
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
@@ -108,5 +104,5 @@ async def get_stock_daily_history(stock_code: str):
         )
         return daily_df
     except Exception as e:
-        logger.warning(f"⚠️ 获取 {stock_code} 日线数据时出错 (将进行重试): {e}")
+        logger.warning(f" 获取 {stock_code} 日线数据时出错 (将进行重试): {e}")
         raise e
