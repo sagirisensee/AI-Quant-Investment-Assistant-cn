@@ -26,7 +26,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
 
-
+            
 async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """执行全面的ETF AI分析"""
     logger.info("收到 /analyze 命令，启动ETF AI分析...")
@@ -100,4 +100,3 @@ def setup_handlers(application):
     application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("analyze", analyze_command))
     application.add_handler(CommandHandler("analyze_stocks", analyze_stocks_command))
-
