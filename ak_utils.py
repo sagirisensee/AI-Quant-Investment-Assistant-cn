@@ -9,7 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 import json 
 
 logger = logging.getLogger(__name__)
-load_dotenv() 
+load_dotenv(override=True) 
 
 CACHE_EXPIRE = int(os.getenv('CACHE_EXPIRE_SECONDS', '60')) 
 cache = TTLCache(maxsize=10, ttl=CACHE_EXPIRE)

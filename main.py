@@ -7,47 +7,53 @@ from dotenv import load_dotenv
 from bot_handler import setup_handlers  
 from telegram.ext import Application, ApplicationBuilder
 
-
+# --- 这是主要修改的部分 ---
 def load_config():
     """加载配置文件"""
     env_path = Path(__file__).parent / '.env'
     if not env_path.exists():
-        logger.error(f" .env文件不存在: {env_path}")
+        # logger 在这里还未完全配置，所以使用print
+        print(f"❌ .env文件不存在: {env_path}")
         raise FileNotFoundError(f" .env文件不存在: {env_path}")
     
-    load_dotenv(dotenv_path=env_path)
+    # 1. 强制覆盖已有的环境变量，确保每次都从.env文件加载最新配置
+    load_dotenv(dotenv_path=env_path, override=True)
     token = os.getenv('TELEGRAM_TOKEN')
     if not token:
-        logger.error(" 请在.env文件中配置TELEGRAM_TOKEN")
-        raise ValueError(" 请在.env文件中配置TELEGRAM_TOKEN")
+        print("❌ 请在.env文件中配置TELEGRAM_TOKEN")
+        raise ValueError("❌ 请在.env文件中配置TELEGRAM_TOKEN")
     return token
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# 2. 配置日志，同时输出到控制台和文件
+log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-# --- 这是主要修改的部分 ---
+# 控制台处理器
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_formatter)
+logger.addHandler(console_handler)
+
+# 文件处理器 (写入到 bot.log 文件)
+file_handler = logging.FileHandler("bot.log", mode='a', encoding='utf-8')
+file_handler.setFormatter(log_formatter)
+logger.addHandler(file_handler)
+
+
 async def main():
     """使用async with启动和管理机器人"""
     try:
         TELEGRAM_TOKEN = load_config()
         
-        # 使用上下文管理器构建和运行Application
-        # async with 会自动处理 application.initialize() 和 application.shutdown()
         async with Application.builder().token(TELEGRAM_TOKEN).build() as application:
             setup_handlers(application)
-            logger.info("🚀 ETF分析机器人启动... 按下 Ctrl+C 停止。")
+            logger.info("🚀 AI量化投资助手启动... 按下 Ctrl+C 停止。")
             
-            # run_polling()现在不再由我们直接调用，而是通过async with隐式管理
-            # 我们只需要让这个协程保持运行即可
             await application.start()
             await application.updater.start_polling()
             
-            # 保持主协程运行，直到被中断
             while True:
-                await asyncio.sleep(3600) # 每小时唤醒一次，或者可以设置更长
+                await asyncio.sleep(3600)
 
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 收到中断信号，机器人正在停止...")
@@ -58,8 +64,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("=== ETF机器人启动 ===")
-    print(f"Python路径: {sys.executable}")
+    print("=== AI量化投资助手启动脚本 ===")
+    
     # 切换工作目录到脚本所在目录，避免路径问题
     os.chdir(Path(__file__).parent)
     print(f"工作目录: {os.getcwd()}")
@@ -67,5 +73,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        # 这个捕获是为了处理在main函数启动前就可能发生的错误，如配置加载失败
-        print(f" 启动失败: {e}")
+        print(f"❌ 启动失败: {e}")
