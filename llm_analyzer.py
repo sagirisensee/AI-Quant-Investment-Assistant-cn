@@ -73,7 +73,17 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
             ],
             # 使用通用的 JSON 对象模式，让模型自由生成内容，再由我们解析
             response_format={
-                "type": "json_object"
+                "type": "json_schema",
+                "json_schema": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "score": {"type": "number", "description": "0到100分的综合评分"},
+                            "comment": {"type": "string", "description": "一段流畅的、总结性的自然语言交易点评"}
+                        },
+                        "required": ["score", "comment"]
+                    }
+                }
             }
         )
         
