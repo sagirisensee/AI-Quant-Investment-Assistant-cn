@@ -20,7 +20,10 @@
 
 *   **第三方库兼容性**：精准解决了 `pandas_ta` 库与 `akshare` 数据源之间因列名中英文不匹配（如 `close` vs `收盘`）导致的计算失败问题。
 *   **API 访问策略**：有效应对了来自数据源和 LLM 服务商的双重 API 速率限制/反爬虫问题，通过引入“随机延迟”的“串行”请求，模拟人类行为，避免 IP 被封禁。
-*   **API“方言”适配**：深入解决了不同 LLM 服务商 API 规范的细微差异，特别是 `response_format` 中关于 `json_schema` 的精确要求，确保了与兼容 OpenAI 格式的 API 无缝通信。
+*   **API“方言”适配**：深入解决了不同 LLM 服务商 API 规范的细微差异，特别是 `response_format` 中关于 `json_schema` 的精确要求，确保了与兼容 OpenAI 格式的 API 无缝通信。如果所用api不支持`json_schema`格式，请在response_format处改为
+            response_format={
+                "type": "json_object"
+            }
 
 ## 安装指南
 
