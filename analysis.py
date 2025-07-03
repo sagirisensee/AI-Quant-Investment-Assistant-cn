@@ -85,7 +85,6 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             result.ta.sma(close='收盘', length=60, append=True)
             # MACD
             result.ta.macd(close='收盘', append=True)
-            print(result[['收盘', 'SMA_5', 'SMA_10', 'SMA_20', 'SMA_60']].tail(10))
             if len(result) < 2:
                 analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于2天)', 'technical_indicators_summary': ["历史数据不足2天，无法进行趋势分析。"], 'raw_debug_data': {}})
                 continue
@@ -249,7 +248,7 @@ class _IntradaySignalGenerator:
             'change': change,
             'analysis_points': points if points else ["盘中信号平稳"]
         }
-
+'''
 async def get_detailed_analysis_report_for_debug(get_realtime_data_func, get_daily_history_func, core_pool):
     logger.info("启动AI驱动的调试分析引擎，不调用LLM...")
     realtime_data_df_task = asyncio.to_thread(get_realtime_data_func)
@@ -281,3 +280,4 @@ async def get_detailed_analysis_report_for_debug(get_realtime_data_func, get_dai
         })
         await asyncio.sleep(random.uniform(0.5, 1.0))
     return debug_report
+    '''
