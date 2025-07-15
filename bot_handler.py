@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 import logging
-from analysis import generate_ai_driven_report#,get_detailed_analysis_report_for_debug
+from analysis import generate_ai_driven_report,get_detailed_analysis_report_for_debug
 from ak_utils import CORE_ETF_POOL, CORE_STOCK_POOL, get_all_etf_spot_realtime, get_etf_daily_history, get_all_stock_spot_realtime, get_stock_daily_history
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ async def analyze_stocks_command(update: Update, context: ContextTypes.DEFAULT_T
     
     final_message = message_header + message_body
     await send_long_message(update, final_message)
-    '''
+    
 async def debug_analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ETF调试分析（仅量化，不调用AI）"""
     logger.info("收到 /debug_analyze 命令，启动ETF调试分析...")
@@ -168,14 +168,12 @@ async def debug_stocks_command(update: Update, context: ContextTypes.DEFAULT_TYP
         )
     final_message = message_header + message_body
     await send_long_message(update, final_message)
-    '''
+    
 def setup_handlers(application):
     """设置所有命令处理器"""
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("analyze", analyze_command))
     application.add_handler(CommandHandler("analyze_stocks", analyze_stocks_command))
-    '''
     application.add_handler(CommandHandler("debug_analyze", debug_analyze_command))
     application.add_handler(CommandHandler("debug_stocks", debug_stocks_command))
-    '''

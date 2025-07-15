@@ -3,26 +3,20 @@ import logging
 import random
 import pandas as pd
 import pandas_ta as ta
-from collections import deque
 from ak_utils import (
     get_all_etf_spot_realtime, get_etf_daily_history, CORE_ETF_POOL,
     get_all_stock_spot_realtime, get_stock_daily_history, CORE_STOCK_POOL
 )
 from llm_analyzer import get_llm_score_and_analysis
+from indicators import analyze_ma, analyze_macd, analyze_bollinger
+from indicators import judge_trend_status
 
 logger = logging.getLogger(__name__)
+pd.set_option('display.max_rows', None) 
+pd.set_option('display.max_columns', None) 
 
 async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_func, core_pool):
-    """
-    融合量化分析与LLM分析，生成最终报告的统一函数。
-    参数:
-        get_realtime_data_func: 获取实时数据的函数 (例如 get_all_etf_spot_realtime 或 get_all_stock_spot_realtime)
-        get_daily_history_func: 获取历史日线数据的函数 (例如 get_etf_daily_history 或 get_stock_daily_history)
-        core_pool: 核心观察池 (例如 CORE_ETF_POOL 或 CORE_STOCK_POOL)
-    """
     logger.info("启动AI驱动的统一全面分析引擎...")
-    
-    # 并行获取实时数据和日线趋势
     realtime_data_df_task = asyncio.to_thread(get_realtime_data_func)
     daily_trends_task = _get_daily_trends_generic(get_daily_history_func, core_pool)
     realtime_data_df, daily_trends_list = await asyncio.gather(realtime_data_df_task, daily_trends_task)
@@ -59,10 +53,21 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 analysis_report.append({**item_info, 'status': '🟡 数据不足', 'technical_indicators_summary': ["历史数据为空或无法获取。"], 'raw_debug_data': {}})
                 continue
             # 字段标准化
-            if '收盘' not in result.columns and 'close' in result.columns:
-                result.rename(columns={'close': '收盘'}, inplace=True)
-            elif '收盘' not in result.columns and 'Close' in result.columns:
-                result.rename(columns={'Close': '收盘'}, inplace=True)
+            if '收盘' in result.columns: 
+                result.rename(columns={'收盘': 'close'}, inplace=True)
+            elif 'close' not in result.columns and 'Close' in result.columns:
+                result.rename(columns={'Close': 'close'}, inplace=True)
+
+            if '最高' in result.columns:
+                result.rename(columns={'最高': 'high'}, inplace=True)
+            elif 'high' not in result.columns and 'High' in result.columns:
+                result.rename(columns={'High': 'high'}, inplace=True)
+
+            if '最低' in result.columns:
+                result.rename(columns={'最低': 'low'}, inplace=True)
+            elif 'low' not in result.columns and 'Low' in result.columns:
+                result.rename(columns={'Low': 'low'}, inplace=True)
+
             if '日期' in result.columns:
                 result['日期'] = pd.to_datetime(result['日期'])
                 result.set_index('日期', inplace=True)
@@ -70,159 +75,61 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 result['date'] = pd.to_datetime(result['date'])
                 result.set_index('date', inplace=True)
             result.index.name = None
-            result['收盘'] = pd.to_numeric(result['收盘'], errors='coerce')
-            # 检查关键列
-            if '收盘' not in result.columns:
-                analysis_report.append({**item_info, 'status': '🟡 数据列缺失', 'technical_indicators_summary': ["获取到的历史数据缺少必要的'收盘'列。"]})
+            result['close'] = pd.to_numeric(result['close'], errors='coerce')
+            
+            if 'high' in result.columns:
+                result['high'] = pd.to_numeric(result['high'], errors='coerce')
+            if 'low' in result.columns:
+                result['low'] = pd.to_numeric(result['low'], errors='coerce')
+            if 'close' not in result.columns: # Removed 'high' and 'low' from this critical check
+                analysis_report.append({**item_info, 'status': '🟡 数据列缺失', 'technical_indicators_summary': ["获取到的历史数据缺少必要的'close'列。"]})
                 continue
             if len(result) < 60:
                 analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于60天)', 'technical_indicators_summary': ["历史数据不足60天，部分长期指标无法计算。"], 'raw_debug_data': {}})
                 continue
-            # 价格均线
-            result.ta.sma(close='收盘', length=5, append=True)
-            result.ta.sma(close='收盘', length=10, append=True)
-            result.ta.sma(close='收盘', length=20, append=True)
-            result.ta.sma(close='收盘', length=60, append=True)
-            # MACD
-            result.ta.macd(close='收盘', append=True)
+            if result['close'].isnull().all():
+                analysis_report.append({**item_info, 'status': '🟡 数据计算失败', 'technical_indicators_summary': ["'close' 列数据全为空值，无法计算指标。"]})
+                continue
+
+            result.ta.sma(close='close', length=5, append=True)
+            result.ta.sma(close='close', length=10, append=True)
+            result.ta.sma(close='close', length=20, append=True)
+            result.ta.sma(close='close', length=60, append=True)
+            result.ta.macd(close='close', append=True)
+            result.ta.bbands(close='close', length=20, append=True)
+
+            
             if len(result) < 2:
                 analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于2天)', 'technical_indicators_summary': ["历史数据不足2天，无法进行趋势分析。"], 'raw_debug_data': {}})
                 continue
             latest = result.iloc[-1]
             prev_latest = result.iloc[-2]
             trend_signals = []
-            ma_debug = {}
-            for length in [5, 10, 20, 60]:
-                col = f'SMA_{length}'
-                val = latest.get(col, None)
-                ma_debug[col] = val if pd.notna(val) else None
-            raw_debug_data = {
-                '收盘': latest.get('收盘', None),
-                **ma_debug
-            }
-            for length in [5, 10, 20, 60]:
-                col = f'SMA_{length}'
-                prev_val = prev_latest.get(col, None)
-                raw_debug_data[f"{col}_prev"] = prev_val if pd.notna(prev_val) else None
-            ma_values = [f"{col}: {val:.3f}" if val is not None else f"{col}: 缺失" for col, val in ma_debug.items()]
-            trend_signals.append("【均线最新数值】" + " | ".join(ma_values))
-            trend_signals.append(f"收盘价: {raw_debug_data['收盘']}")
-            # 均线排列
-            ma_cols = ['SMA_5', 'SMA_10', 'SMA_20', 'SMA_60']
-            if all(col in latest and pd.notna(latest[col]) for col in ma_cols):
-                is_bullish_stack = (latest['SMA_5'] > latest['SMA_10'] and
-                                    latest['SMA_10'] > latest['SMA_20'] and
-                                    latest['SMA_20'] > latest['SMA_60'])
-                is_bearish_stack = (latest['SMA_5'] < latest['SMA_10'] and
-                                    latest['SMA_10'] < latest['SMA_20'] and
-                                    latest['SMA_20'] < latest['SMA_60'])
-                if is_bullish_stack:
-                    trend_signals.append("均线呈强势多头排列 (5 > 10 > 20 > 60日线)，趋势强劲。")
-                elif is_bearish_stack:
-                    trend_signals.append("均线呈弱势空头排列 (5 < 10 < 20 < 60日线)，趋势疲弱。")
-                else:
-                    trend_signals.append("均线排列纠缠 (处于震荡或趋势转换期)。")
-            else:
-                trend_signals.append("部分均线数据缺失，无法判断均线排列状态。")
-            # 股价与均线关系
-            for length in [5, 10, 20, 60]:
-                sma_col = f'SMA_{length}'
-                if sma_col in latest and pd.notna(latest[sma_col]):
-                    if latest['收盘'] > latest[sma_col]:
-                        trend_signals.append(f"股价高于{length}日均线。")
-                    else:
-                        trend_signals.append(f"股价低于{length}日均线。")
-                else:
-                    trend_signals.append(f"{length}日均线数据缺失，无法判断股价与均线关系。")
-            # 均线交叉（金叉/死叉）
-            ma_pairs = [(5, 10), (10, 20), (20, 60)]
-            for s_len, l_len in ma_pairs:
-                s_col = f'SMA_{s_len}'
-                l_col = f'SMA_{l_len}'
-                if all(col in latest and col in prev_latest and pd.notna(latest[col]) and pd.notna(prev_latest[col]) for col in [s_col, l_col]):
-                    if latest[s_col] > latest[l_col] and prev_latest[s_col] <= prev_latest[l_col]:
-                        trend_signals.append(f"{s_len}日均线金叉{l_len}日均线 (看涨信号)。")
-                    elif latest[s_col] < latest[l_col] and prev_latest[s_col] >= prev_latest[l_col]:
-                        trend_signals.append(f"{s_len}日均线死叉{l_len}日均线 (看跌信号)。")
-                    else:
-                        if latest[s_col] > latest[l_col]:
-                            trend_signals.append(f"{s_len}日均线在{l_len}日均线上方，多头排列延续。")
-                        else:
-                            trend_signals.append(f"{s_len}日均线在{l_len}日均线下方，空头排列延续。")
-                else:
-                    trend_signals.append(f"{s_len}日与{l_len}日均线数据缺失，无法判断交叉与排列。")
-            # 60日均线趋势
-            if 'SMA_60' in latest and 'SMA_60' in prev_latest and pd.notna(latest['SMA_60']) and pd.notna(prev_latest['SMA_60']):
-                if latest['SMA_60'] > prev_latest['SMA_60']:
-                    trend_signals.append("60日均线趋势向上 (中长期趋势积极)。")
-                elif latest['SMA_60'] < prev_latest['SMA_60']:
-                    trend_signals.append("60日均线趋势向下 (中长期趋势谨慎)。")
-                else:
-                    trend_signals.append("60日均线趋势持平 (中长期趋势中性)。")
-            else:
-                trend_signals.append("60日均线数据缺失，无法判断其趋势方向。")
-            # MACD指标
-            macd_line_col = 'MACD_12_26_9'
-            signal_line_col = 'MACDs_12_26_9'
-            histogram_col = 'MACDh_12_26_9'
-            if all(col in latest and pd.notna(latest[col]) for col in [macd_line_col, signal_line_col, histogram_col]) and \
-               all(col in prev_latest and pd.notna(prev_latest[col]) for col in [macd_line_col, signal_line_col, histogram_col]):
-                if latest[macd_line_col] > latest[signal_line_col] and prev_latest[macd_line_col] <= prev_latest[signal_line_col]:
-                    trend_signals.append("MACD金叉 (看涨信号)。")
-                elif latest[macd_line_col] < latest[signal_line_col] and prev_latest[macd_line_col] >= prev_latest[signal_line_col]:
-                    trend_signals.append("MACD死叉 (看跌信号)。")
-                else:
-                    if latest[macd_line_col] > latest[signal_line_col]:
-                        trend_signals.append("MACD线在信号线上方 (多头延续)。")
-                    else:
-                        trend_signals.append("MACD线在信号线下方 (空头延续)。")
-                if latest[macd_line_col] > 0:
-                    trend_signals.append("MACD线在零轴上方 (强势区域)。")
-                elif latest[macd_line_col] < 0:
-                    trend_signals.append("MACD线在零轴下方 (弱势区域)。")
-                else:
-                    trend_signals.append("MACD线在零轴附近 (中性区域)。")
-                if latest[histogram_col] > 0:
-                    if latest[histogram_col] > prev_latest[histogram_col]:
-                        trend_signals.append("MACD红柱增长 (多头力量增强)。")
-                    elif latest[histogram_col] < prev_latest[histogram_col]:
-                        trend_signals.append("MACD红柱缩短 (多头力量减弱)。")
-                    else:
-                        trend_signals.append("MACD红柱持平 (多头力量维持)。")
-                elif latest[histogram_col] < 0:
-                    if latest[histogram_col] < prev_latest[histogram_col]:
-                        trend_signals.append("MACD绿柱增长 (空头力量增强)。")
-                    elif latest[histogram_col] > prev_latest[histogram_col]:
-                        trend_signals.append("MACD绿柱缩短 (空头力量减弱)。")
-                    else:
-                        trend_signals.append("MACD绿柱持平 (空头力量维持)。")
-                else:
-                    trend_signals.append("MACD柱线在零轴 (多空平衡)。")
-            else:
-                trend_signals.append("MACD指标数据缺失或不完整，无法分析。")
-            # 最终报告状态
-            status = '🟢 上升趋势' if 'SMA_20' in latest and pd.notna(latest['SMA_20']) and latest['收盘'] > latest['SMA_20'] else '🔴 下降趋势'
-            if status == '🟢 上升趋势' and 'SMA_20' in latest and 'SMA_60' in latest and pd.notna(latest['SMA_20']) and pd.notna(latest['SMA_60']) and latest['SMA_20'] > latest['SMA_60']:
-                status = '🟢 强势上升趋势'
-            elif status == '🔴 下降趋势' and 'SMA_20' in latest and 'SMA_60' in latest and pd.notna(latest['SMA_20']) and pd.notna(latest['SMA_60']) and latest['SMA_20'] < latest['SMA_60']:
-                status = '🔴 弱势下降趋势'
-            else:
-                status = '🟡 震荡趋势'
+
+            analyze_ma(result, latest, prev_latest, trend_signals)
+            analyze_macd(result, latest, prev_latest, trend_signals)
+            analyze_bollinger(result, latest, prev_latest, trend_signals)
+
+
+            # --- 状态判定 ---
+            status = judge_trend_status(latest, prev_latest)
             analysis_report.append({
                 **item_info,
                 'status': status,
                 'technical_indicators_summary': trend_signals,
-                'raw_debug_data': raw_debug_data
+                'raw_debug_data': {}
             })
         except Exception as e:
-            logger.error(f"❌ 分析 {item_info.get('name', item_info['code'])} 日线数据时失败: {e}", exc_info=True)
-            analysis_report.append({**item_info, 'status': '❌ 分析失败', 'technical_indicators_summary': [f"数据获取或分析过程中出现错误：{e}"], 'raw_debug_data': {}})
-        await asyncio.sleep(random.uniform(1.0, 2.0))
+            logger.error(f"分析 {item_info.get('name', item_info['code'])} 时出错: {e}", exc_info=True)
+            analysis_report.append({
+                **item_info,
+                'status': '❌ 分析失败',
+                'technical_indicators_summary': [f"数据获取或分析过程中出现错误：{e}"],
+                'raw_debug_data': {}
+            })
     return analysis_report
 
-
 class _IntradaySignalGenerator:
-    """内部辅助类：生成盘中量化信号（只看价格涨跌幅）"""
     def __init__(self, item_list):
         self.item_list = item_list
 
@@ -248,7 +155,8 @@ class _IntradaySignalGenerator:
             'change': change,
             'analysis_points': points if points else ["盘中信号平稳"]
         }
-'''
+
+
 async def get_detailed_analysis_report_for_debug(get_realtime_data_func, get_daily_history_func, core_pool):
     logger.info("启动AI驱动的调试分析引擎，不调用LLM...")
     realtime_data_df_task = asyncio.to_thread(get_realtime_data_func)
@@ -280,4 +188,3 @@ async def get_detailed_analysis_report_for_debug(get_realtime_data_func, get_dai
         })
         await asyncio.sleep(random.uniform(0.5, 1.0))
     return debug_report
-    '''
