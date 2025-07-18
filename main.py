@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from bot_handler import setup_handlers  
 from telegram.ext import Application, ApplicationBuilder
 
-# --- 这是主要修改的部分 ---
+
 def load_config():
     """加载配置文件"""
     env_path = Path(__file__).parent / '.env'

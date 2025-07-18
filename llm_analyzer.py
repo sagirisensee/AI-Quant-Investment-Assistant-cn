@@ -30,7 +30,7 @@ async def get_llm_score_and_analysis(etf_data, daily_trend_data):
     combined_data = {
         "投资标的名称": etf_data.get('name'),
         "代码": etf_data.get('code'),
-        "日内涨跌幅": f"{etf_data.get('change', 0):.2f}%",
+        "日内涨跌幅": f"{etf_data.get('change', 0)* 100:.2f}%",
         "日线级别整体趋势": daily_trend_data.get('status'), # 例如 '🟢 强势上升趋势'
         "盘中技术信号": daily_trend_data.get('intraday_signals'), # 这个daily_trend_data中没有，应该是etf_data里
         "详细技术指标分析列表": daily_trend_data.get('technical_indicators_summary', []) # 这是关键，传递详细的列表
