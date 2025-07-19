@@ -145,7 +145,11 @@ class _IntradaySignalGenerator:
     def _create_signal_dict(self, item_series, item_info):
         points = []
         code = item_series.get('代码')
-        change = item_series.get('涨跌幅', 0)
+        raw_change = item_series.get('涨跌幅', 0)
+	if self.item_type == "stock":
+            change = raw_change * 100  # 股票涨跌幅是小数，需转为百分比
+        else:
+            change = raw_change
         if change > 2.5: points.append("日内大幅上涨")
         if change < -2.5: points.append("日内大幅下跌")
         return {
