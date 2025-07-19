@@ -23,7 +23,11 @@ async def generate_ai_driven_report(get_realtime_data_func, get_daily_history_fu
     if realtime_data_df is None:
         return [{"name": "错误", "code": "", "ai_score": 0, "ai_comment": "获取实时数据失败，无法分析。"}]
     daily_trends_map = {item['code']: item for item in daily_trends_list}
-    intraday_analyzer = _IntradaySignalGenerator(core_pool)
+    if get_realtime_data_func == get_all_stock_spot_realtime:
+        item_type = "stock"
+    else:
+        item_type = "etf"
+    intraday_analyzer = _IntradaySignalGenerator(core_pool, item_type=item_type)
     intraday_signals = intraday_analyzer.generate_signals(realtime_data_df)
     final_report = []
     for i, signal in enumerate(intraday_signals):
@@ -76,7 +80,6 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
                 result.set_index('date', inplace=True)
             result.index.name = None
             result['close'] = pd.to_numeric(result['close'], errors='coerce')
-            
             if 'high' in result.columns:
                 result['high'] = pd.to_numeric(result['high'], errors='coerce')
             if 'low' in result.columns:
@@ -98,7 +101,6 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
             result.ta.macd(close='close', append=True)
             result.ta.bbands(close='close', length=20, append=True)
 
-            
             if len(result) < 2:
                 analysis_report.append({**item_info, 'status': '🟡 数据不足 (少于2天)', 'technical_indicators_summary': ["历史数据不足2天，无法进行趋势分析。"], 'raw_debug_data': {}})
                 continue
@@ -130,8 +132,9 @@ async def _get_daily_trends_generic(get_daily_history_func, core_pool):
     return analysis_report
 
 class _IntradaySignalGenerator:
-    def __init__(self, item_list):
+    def __init__(self, item_list, item_type):
         self.item_list = item_list
+        self.item_type = item_type
 
     def generate_signals(self, all_item_data_df):
         results = []
@@ -146,8 +149,8 @@ class _IntradaySignalGenerator:
         points = []
         code = item_series.get('代码')
         raw_change = item_series.get('涨跌幅', 0)
-	if self.item_type == "stock":
-            change = raw_change * 100  # 股票涨跌幅是小数，需转为百分比
+        if self.item_type == "stock":
+            change = raw_change * 100
         else:
             change = raw_change
         if change > 2.5: points.append("日内大幅上涨")
@@ -169,7 +172,11 @@ async def get_detailed_analysis_report_for_debug(get_realtime_data_func, get_dai
     if realtime_data_df is None:
         return [{"name": "错误", "code": "", "ai_comment": "获取实时数据失败，无法分析。"}]
     daily_trends_map = {item['code']: item for item in daily_trends_list}
-    intraday_analyzer = _IntradaySignalGenerator(core_pool)
+    if get_realtime_data_func == get_all_stock_spot_realtime:
+        item_type = "stock"
+    else:
+        item_type = "etf"
+    intraday_analyzer = _IntradaySignalGenerator(core_pool, item_type=item_type)
     intraday_signals = intraday_analyzer.generate_signals(realtime_data_df)
     debug_report = []
     for i, signal in enumerate(intraday_signals):
