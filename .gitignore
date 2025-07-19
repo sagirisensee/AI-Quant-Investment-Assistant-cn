@@ -7,4 +7,6 @@
 __pycache__
 *.pyc
 bot.log
+
+# script file
 start_bot.sh
